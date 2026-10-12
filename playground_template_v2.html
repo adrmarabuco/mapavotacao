@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de Votação 2026 v2</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2230; --border: #2a3140;
+    --text: #e6edf3; --muted: #8b949e; --accent: #f2cc60; --sel: #e6edf3;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: 1fr auto; height: 100vh; }
+  aside { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+  h1 { font-size: 16px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  .group { margin-bottom: 18px; }
+  .group > label, .glabel { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .presets button { font-size: 12px; }
+  button, select, input[type=text], input[type=number] {
+    font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  select, input[type=text] { width: 100%; }
+  .seg { display: flex; gap: 0; }
+  .seg button { flex: 1; border-radius: 0; }
+  .seg button:first-child { border-radius: 6px 0 0 6px; }
+  .seg button:last-child { border-radius: 0 6px 6px 0; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input[type=number] { width: 70px; font-family: var(--mono); }
+  .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .toggle input { accent-color: var(--accent); }
+  .disabled { opacity: .4; pointer-events: none; }
+  main { position: relative; display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+  .mapwrap { position: relative; min-width: 0; min-height: 0; }
+  #summary { position: absolute; top: 12px; left: 16px; right: 16px; pointer-events: none; }
+  #summary .big { font-size: 18px; font-weight: 600; }
+  #summary .meta { color: var(--muted); font-size: 12px; }
+  svg#map { width: 100%; height: calc(100% - 60px); margin-top: 60px; display: block; }
+  #map path.f { cursor: pointer; }
+  #map .lbl { fill: #111; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+    paint-order: stroke; stroke: rgba(255,255,255,.55); }
+  #legend { position: absolute; left: 16px; bottom: 16px; background: rgba(22,27,34,.9); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 11px; color: var(--muted); }
+  #legend .bar { width: 220px; height: 10px; border-radius: 3px; margin: 4px 0; }
+  #legend .ticks { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); }
+  #tip { position: fixed; pointer-events: none; background: #0b0f14ee; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-size: 12px; display: none; z-index: 10; min-width: 200px; }
+  #tip b { display: block; margin-bottom: 4px; }
+  #tip .t { display: flex; justify-content: space-between; gap: 12px; }
+  #tip .t span:last-child { font-family: var(--mono); }
+  #detail { border-left: 1px solid var(--border); background: var(--panel); padding: 16px; overflow-y: auto; }
+  #detail h2 { font-size: 15px; margin: 0 0 2px; }
+  #detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .cand { margin-bottom: 8px; font-size: 12px; }
+  .cand .top { display: flex; justify-content: space-between; gap: 8px; }
+  .cand .top span:last-child { font-family: var(--mono); color: var(--muted); }
+  .cand .track { height: 6px; background: var(--panel-2); border-radius: 3px; margin-top: 3px; }
+  .cand .fill { height: 100%; border-radius: 3px; background: #6e7681; }
+  .cand.hl .fill { background: var(--accent); }
+  .cand.hl .top span:first-child { color: var(--accent); }
+  footer { grid-column: 2; border-top: 1px solid var(--border); background: var(--panel); padding: 12px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  #prompt { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--text); white-space: pre-wrap; margin: 0; max-height: 110px; overflow-y: auto; }
+  #copy { white-space: nowrap; }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; }
+    aside { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+    main { grid-template-columns: 1fr; }
+    .mapwrap { height: 70vh; }
+    #detail { border-left: 0; border-top: 1px solid var(--border); }
+    footer { grid-column: 1; flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Mapa de Votação 2026 · v2</h1>
+    <div class="sub">Presidente · 1º turno · candidatos, brancos, nulos e abstenção</div>
+
+    <div class="group">
+      <span class="glabel">Presets</span>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="group">
+      <label for="ind">Indicador</label>
+      <select id="ind">
+        <option value="cand">Candidato</option>
+        <option value="bn">Brancos + nulos</option>
+        <option value="b">Brancos</option>
+        <option value="n">Nulos</option>
+        <option value="abs">Abstenção</option>
+      </select>
+    </div>
+
+    <div class="group" id="candGroup">
+      <label for="cand">Candidato</label>
+      <select id="cand"></select>
+    </div>
+
+    <div class="group" id="measGroup">
+      <span class="glabel">Medida</span>
+      <div class="seg" id="measSeg">
+        <button data-v="pct">Percentual</button>
+        <button data-v="abs">Absoluto</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="glabel">Mapa</span>
+      <div class="seg" id="mapSeg">
+        <button data-v="uf">Range Map (UF)</button>
+        <button data-v="mun">Brazil Map (mun.)</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="glabel" id="scaleLabel">Escala de cor</span>
+      <label class="toggle"><input type="checkbox" id="auto"> Automática (mín/máx dos dados visíveis)</label>
+      <div class="row" id="manual" style="margin-top:8px">
+        <input type="number" id="vmin" min="0" step="1"> <span id="unitA">% a</span>
+        <input type="number" id="vmax" min="0" step="1"> <span id="unitB">%</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <label for="uf">Zoom em UF</label>
+      <select id="uf"><option value="">Brasil inteiro</option></select>
+    </div>
+
+    <div class="group">
+      <label for="search">Buscar município</label>
+      <input type="text" id="search" list="munList" placeholder="Nome do município – UF" autocomplete="off">
+      <datalist id="munList"></datalist>
+    </div>
+
+    <div class="group" id="lblGroup">
+      <label class="toggle"><input type="checkbox" id="labels"> Rótulos com o valor no centroide</label>
+    </div>
+  </aside>
+
+  <main>
+    <div class="mapwrap">
+      <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="summary"></div>
+      <div id="legend"></div>
+    </div>
+    <div id="detail"></div>
+  </main>
+
+  <footer>
+    <pre id="prompt"></pre>
+    <button id="copy">Copiar prompt</button>
+  </footer>
+</div>
+<div id="tip"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const C = DATA.candidates;
+const NS = 'http://www.w3.org/2000/svg';
+const fmtInt = n => Math.round(n).toLocaleString('pt-BR');
+const fmtPct = p => (p * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const total = v => v.reduce((a, b) => a + b, 0);
+const ci = nr => C.findIndex(c => c.nr === nr);
+// índices do vetor `a`: aptos, comparecimento, abstenções, brancos, nulos
+const APT = 0, COMP = 1, ABST = 2, BRA = 3, NUL = 4;
+
+// colormaps matplotlib
+const RDBU_R = ['#053061','#2166ac','#4393c3','#92c5de','#d1e5f0','#f7f7f7','#fddbc7','#f4a582','#d6604d','#b2182b','#67001f'];
+const GREYS = ['#ffffff','#f0f0f0','#d9d9d9','#bdbdbd','#969696','#737373','#525252','#252525','#000000'];
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const RAMPS = { RdBu_r: RDBU_R.map(hex), Greys: GREYS.map(hex) };
+function colorAt(t, name) {
+  const R = RAMPS[name];
+  t = Math.max(0, Math.min(1, t)) * (R.length - 1);
+  const i = Math.min(Math.floor(t), R.length - 2), f = t - i;
+  const c = R[i].map((a, k) => Math.round(a + (R[i + 1][k] - a) * f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// indicadores: contagem, base do percentual e descrição
+const IND = {
+  cand: { label: () => C[ci(state.cand)].nm, cmap: 'RdBu_r',
+    count: it => it.v && it.v[ci(state.cand)], base: it => it.v && total(it.v), baseLbl: 'comparecimento' },
+  bn: { label: () => 'Brancos + nulos', cmap: 'Greys',
+    count: it => it.a && it.a[BRA] + it.a[NUL], base: it => it.a && it.a[COMP], baseLbl: 'comparecimento' },
+  b: { label: () => 'Brancos', cmap: 'Greys',
+    count: it => it.a && it.a[BRA], base: it => it.a && it.a[COMP], baseLbl: 'comparecimento' },
+  n: { label: () => 'Nulos', cmap: 'Greys',
+    count: it => it.a && it.a[NUL], base: it => it.a && it.a[COMP], baseLbl: 'comparecimento' },
+  abs: { label: () => 'Abstenção', cmap: 'Greys',
+    count: it => it.a && it.a[ABST], base: it => it.a && it.a[APT], baseLbl: 'aptos' },
+};
+const isPct = () => state.ind === 'cand' || state.meas === 'pct';
+function metric(it) {
+  const I = IND[state.ind], c = I.count(it), b = I.base(it);
+  if (c == null || b == null) return null;
+  return isPct() ? (b ? c / b : 0) : c;
+}
+const fmtVal = x => isPct() ? fmtPct(x) : fmtInt(x);
+
+const DEFAULTS = { ind: 'cand', meas: 'pct', map: 'uf', cand: 13, auto: true, vmin: 0, vmax: 100, uf: '', labels: true, sel: null };
+const state = { ...DEFAULTS };
+
+const PRESETS = [
+  { name: 'Range Map', s: { ind: 'cand', map: 'uf', cand: 13, labels: true } },
+  { name: 'Brazil Map', s: { ind: 'cand', map: 'mun', cand: 13, labels: false } },
+  { name: 'Nulos e Brancos (UF)', s: { ind: 'bn', meas: 'abs', map: 'uf', labels: true } },
+  { name: 'Brancos e nulos (mun.)', s: { ind: 'bn', meas: 'pct', map: 'mun', labels: false } },
+  { name: 'Abstenção (UF)', s: { ind: 'abs', meas: 'pct', map: 'uf', labels: true } },
+  { name: 'Abstenção (mun.)', s: { ind: 'abs', meas: 'pct', map: 'mun', labels: false } },
+];
+
+// ---------- elementos
+const $ = id => document.getElementById(id);
+const svg = $('map');
+const gFeat = document.createElementNS(NS, 'g');
+const gBorder = document.createElementNS(NS, 'g');
+const gLbl = document.createElementNS(NS, 'g');
+const selPath = document.createElementNS(NS, 'path');
+selPath.setAttribute('fill', 'none'); selPath.setAttribute('stroke', 'var(--accent)');
+selPath.setAttribute('stroke-width', '2.5'); selPath.setAttribute('vector-effect', 'non-scaling-stroke');
+selPath.style.pointerEvents = 'none';
+svg.append(gFeat, gBorder, gLbl, selPath);
+
+function mkPath(d, cls) {
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', d);
+  if (cls) p.setAttribute('class', cls);
+  p.setAttribute('vector-effect', 'non-scaling-stroke');
+  return p;
+}
+
+// camada UF (features do Range Map) e municípios (Brazil Map)
+const ufPaths = DATA.ufs.map((u, i) => { const p = mkPath(u.d, 'f'); p.dataset.k = 'uf'; p.dataset.i = i;
+  p.setAttribute('stroke-width', '1'); return p; });
+const munPaths = DATA.muns.map((m, i) => { const p = mkPath(m.d, 'f'); p.dataset.k = 'mun'; p.dataset.i = i;
+  p.setAttribute('stroke-width', '0.6'); return p; });
+const ufBorders = DATA.ufs.map(u => { const p = mkPath(u.d); p.setAttribute('fill', 'none');
+  p.setAttribute('stroke-width', '1'); p.style.pointerEvents = 'none'; return p; });
+gBorder.append(...ufBorders);
+
+// ---------- controles
+C.forEach(c => $('cand').append(new Option(`${c.nm} (${c.nr})`, c.nr)));
+[...DATA.ufs].sort((a, b) => a.nm.localeCompare(b.nm)).forEach(u => $('uf').append(new Option(`${u.nm} (${u.sg})`, u.sg)));
+const munKey = m => `${m.nm} – ${m.uf}`;
+const munIndex = new Map(DATA.muns.map((m, i) => [munKey(m).toUpperCase(), i]));
+$('munList').innerHTML = DATA.muns.map(m => `<option value="${munKey(m)}">`).join('');
+PRESETS.forEach(p => { const b = document.createElement('button'); b.textContent = p.name;
+  b.onclick = () => { Object.assign(state, DEFAULTS, p.s); updateAll(true); }; $('presets').append(b); });
+
+// trocar indicador/medida muda a unidade da escala: volta para a automática
+const resetScale = () => { state.auto = true; state.vmin = 0; state.vmax = 100; };
+$('ind').onchange = e => { state.ind = e.target.value; resetScale(); updateAll(); };
+$('measSeg').onclick = e => { const v = e.target.dataset.v; if (!v || v === state.meas) return; state.meas = v; resetScale(); updateAll(); };
+$('mapSeg').onclick = e => { const v = e.target.dataset.v; if (!v) return; state.map = v; state.labels = v === 'uf';
+  if (state.sel && state.sel.k !== v) state.sel = null; updateAll(true); };
+$('cand').onchange = e => { state.cand = +e.target.value; updateAll(); };
+$('auto').onchange = e => { state.auto = e.target.checked; updateAll(); };
+$('vmin').oninput = e => { state.vmin = clamp(+e.target.value); updateAll(); };
+$('vmax').oninput = e => { state.vmax = clamp(+e.target.value); updateAll(); };
+$('uf').onchange = e => { state.uf = e.target.value; updateAll(true); };
+$('labels').onchange = e => { state.labels = e.target.checked; updateAll(); };
+$('search').onchange = e => {
+  const i = munIndex.get(e.target.value.trim().toUpperCase());
+  if (i === undefined) return;
+  state.map = 'mun'; state.labels = false; state.sel = { k: 'mun', i };
+  state.uf = DATA.muns[i].uf; updateAll(true);
+};
+const clamp = v => Math.max(0, isPct() ? Math.min(100, isNaN(v) ? 0 : v) : (isNaN(v) ? 0 : v));
+
+function syncControls() {
+  $('ind').value = state.ind;
+  $('candGroup').style.display = state.ind === 'cand' ? '' : 'none';
+  $('measGroup').classList.toggle('disabled', state.ind === 'cand');
+  document.querySelectorAll('#measSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === (isPct() ? 'pct' : 'abs')));
+  document.querySelectorAll('#mapSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === state.map));
+  $('cand').value = state.cand;
+  $('scaleLabel').textContent = `Escala de cor (${IND[state.ind].cmap})`;
+  $('auto').checked = state.auto;
+  $('vmin').value = state.vmin; $('vmax').value = state.vmax;
+  $('vmin').max = $('vmax').max = isPct() ? 100 : '';
+  $('unitA').textContent = isPct() ? '% a' : 'a'; $('unitB').textContent = isPct() ? '%' : 'votos';
+  $('manual').classList.toggle('disabled', state.auto);
+  $('uf').value = state.uf;
+  $('labels').checked = state.labels && state.map === 'uf';
+  $('lblGroup').classList.toggle('disabled', state.map !== 'uf');
+  if (!state.sel || state.sel.k !== 'mun') $('search').value = '';
+  document.querySelectorAll('#presets button').forEach((b, i) => {
+    const p = { ...DEFAULTS, ...PRESETS[i].s };
+    const same = p.ind === state.ind && p.map === state.map && (p.ind === 'cand' ? p.cand === state.cand : p.meas === state.meas);
+    b.classList.toggle('on', same && !state.uf && state.auto);
+  });
+}
+
+// ---------- render
+const items = () => state.map === 'uf' ? DATA.ufs : DATA.muns;
+const visible = it => !state.uf || (it.uf || it.sg) === state.uf;
+const scaleDiv = () => isPct() ? 100 : 1;
+
+function scaleRange() {
+  if (!state.auto) return [Math.min(state.vmin, state.vmax) / scaleDiv(), Math.max(state.vmin, state.vmax) / scaleDiv()];
+  let lo = Infinity, hi = -Infinity;
+  items().forEach(it => { if (!visible(it)) return; const s = metric(it); if (s === null) return;
+    lo = Math.min(lo, s); hi = Math.max(hi, s); });
+  return lo > hi ? [0, 1] : [lo, hi];
+}
+
+function viewBox() {
+  if (!state.uf) return [0, 0, DATA.w, DATA.h];
+  const bb = DATA.ufs.find(u => u.sg === state.uf).bb;
+  const pad = Math.max(bb[2] - bb[0], bb[3] - bb[1]) * 0.06;
+  return [bb[0] - pad, bb[1] - pad, bb[2] - bb[0] + 2 * pad, bb[3] - bb[1] + 2 * pad];
+}
+
+function renderMap(relayout) {
+  const cmap = IND[state.ind].cmap;
+  const [lo, hi] = scaleRange();
+  const tOf = s => hi > lo ? (s - lo) / (hi - lo) : 0.5;
+  const col = s => s === null ? '#30363d' : colorAt(tOf(s), cmap);
+  if (relayout) {
+    gFeat.replaceChildren(...(state.map === 'uf' ? ufPaths : munPaths));
+    gBorder.style.display = state.map === 'mun' ? '' : 'none';
+    svg.setAttribute('viewBox', viewBox().join(' '));
+  }
+  // no Greys o preto some no fundo escuro: bordas claras
+  const edge = cmap === 'Greys' ? 'rgba(139,148,158,.9)' : '#0d1117';
+  ufPaths.forEach(p => p.setAttribute('stroke', edge));
+  ufBorders.forEach(p => p.setAttribute('stroke', cmap === 'Greys' ? 'rgba(139,148,158,.9)' : 'rgba(13,17,23,.85)'));
+  const list = items(), paths = state.map === 'uf' ? ufPaths : munPaths;
+  list.forEach((it, i) => {
+    const c = col(metric(it));
+    paths[i].setAttribute('fill', c);
+    if (state.map === 'mun') paths[i].setAttribute('stroke', c);
+    paths[i].style.opacity = visible(it) ? 1 : 0.25;
+  });
+  // rótulos (Range Map), com contraste automático
+  gLbl.replaceChildren();
+  if (state.map === 'uf' && state.labels) {
+    const fs = viewBox()[2] / (isPct() ? 55 : 65);
+    DATA.ufs.forEach(u => {
+      if (!visible(u)) return;
+      const s = metric(u), t = tOf(s);
+      const dark = cmap === 'Greys' ? t > 0.55 : (t < 0.15 || t > 0.85);
+      const el = document.createElementNS(NS, 'text');
+      el.setAttribute('class', 'lbl'); el.setAttribute('x', u.c[0]); el.setAttribute('y', u.c[1]);
+      el.setAttribute('font-size', fs); el.setAttribute('stroke-width', fs / 6);
+      el.style.fill = dark ? '#fff' : '#111';
+      el.style.stroke = dark ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.55)';
+      el.textContent = fmtVal(s);
+      gLbl.append(el);
+    });
+  }
+  // seleção
+  const sel = state.sel && state.sel.k === state.map ? list[state.sel.i] : null;
+  selPath.setAttribute('d', sel ? sel.d : '');
+  // legenda
+  const R = cmap === 'Greys' ? GREYS : RDBU_R;
+  const stops = R.map((c, i) => `${c} ${(i / (R.length - 1) * 100).toFixed(1)}%`).join(',');
+  const fmtTick = x => isPct() ? fmtPct(x) : x.toLocaleString('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
+  const ticks = (isPct() ? [0, .25, .5, .75, 1] : [0, .5, 1]).map(t => fmtTick(lo + (hi - lo) * t));
+  const title = state.ind === 'cand' ? `% de ${IND.cand.label()}` :
+    `${IND[state.ind].label()} · ${isPct() ? '% sobre ' + IND[state.ind].baseLbl : 'total de votos'}`;
+  $('legend').innerHTML = `<div>${title}</div><div class="bar" style="background:linear-gradient(90deg,${stops})"></div>
+    <div class="ticks">${ticks.map(t => `<span>${t}</span>`).join('')}</div>`;
+}
+
+function sumVec(get, ext) {
+  const out = get(DATA.ufs[0]).map(() => 0);
+  DATA.ufs.forEach(u => get(u).forEach((x, i) => out[i] += x));
+  if (ext) ext.forEach((x, i) => out[i] += x);
+  return out;
+}
+const NAT = { nm: 'Brasil', v: sumVec(u => u.v, DATA.exterior), a: sumVec(u => u.a, DATA.exteriorA) };
+
+const scopeItem = () => state.uf ? DATA.ufs.find(u => u.sg === state.uf) : NAT;
+
+function renderSummary() {
+  const it = scopeItem(), I = IND[state.ind];
+  const c = I.count(it), b = I.base(it);
+  const head = state.ind === 'cand' ? `${I.label()} (${state.cand})` : I.label();
+  $('summary').innerHTML = `<div class="big">${head} · ${fmtPct(c / b)}</div>
+    <div class="meta">${state.uf ? it.nm : 'Brasil (inclui exterior)'} · ${fmtInt(c)} de ${fmtInt(b)} (${I.baseLbl}) ·
+    ${state.map === 'uf' ? 'Range Map por UF' : 'Brazil Map por município'}</div>`;
+}
+
+function ranking(v, hlIdx) {
+  const tot = total(v);
+  const order = v.map((x, i) => i).sort((a, b) => v[b] - v[a]);
+  const max = v[order[0]] || 1;
+  return order.map(i => `<div class="cand${i === hlIdx ? ' hl' : ''}"><div class="top"><span>${C[i].nm} (${C[i].nr})</span>
+    <span>${fmtPct(tot ? v[i] / tot : 0)} · ${fmtInt(v[i])}</span></div>
+    <div class="track"><div class="fill" style="width:${(v[i] / max * 100).toFixed(1)}%"></div></div></div>`).join('');
+}
+
+function turnout(a) {
+  const row = (lbl, n, base, key) => `<div class="cand${state.ind === key ? ' hl' : ''}"><div class="top"><span>${lbl}</span>
+    <span>${base ? fmtPct(n / base) + ' · ' : ''}${fmtInt(n)}</span></div>
+    ${base ? `<div class="track"><div class="fill" style="width:${(n / base * 100).toFixed(1)}%"></div></div>` : ''}</div>`;
+  return `<div class="glabel" style="margin:4px 0 8px">Comparecimento</div>
+    ${row('Aptos', a[APT], 0)}
+    ${row('Comparecimento', a[COMP], a[APT])}
+    ${row('Abstenção', a[ABST], a[APT], 'abs')}
+    ${row('Brancos + nulos', a[BRA] + a[NUL], a[COMP], 'bn')}
+    ${row('Brancos', a[BRA], a[COMP], 'b')}
+    ${row('Nulos', a[NUL], a[COMP], 'n')}`;
+}
+
+function renderDetail() {
+  const k = ci(state.cand);
+  const sel = state.sel && state.sel.k === state.map ? items()[state.sel.i] : null;
+  let it, meta;
+  if (sel) { it = sel; meta = state.map === 'mun' ? `${sel.uf} · município` : 'Unidade da Federação'; }
+  else if (state.uf) { it = scopeItem(); meta = 'Unidade da Federação'; }
+  else { it = NAT; meta = 'Total nacional, incluindo exterior'; }
+  if (!it.v && !it.a) { $('detail').innerHTML = `<h2>${it.nm}</h2><div class="meta">${meta} · sem dados de votação correspondentes</div>`; return; }
+  $('detail').innerHTML = `<h2>${it.nm}</h2><div class="meta">${meta}${it.v ? ' · ' + fmtInt(total(it.v)) + ' votos' : ''}</div>
+    ${it.a ? turnout(it.a) : ''}
+    ${it.v ? `<div class="glabel" style="margin:16px 0 8px">Candidatos</div>${ranking(it.v, state.ind === 'cand' ? k : -1)}` : ''}
+    <div class="meta" style="margin-top:12px">Clique em um ${state.map === 'uf' ? 'estado' : 'município'} para ver os detalhes.</div>`;
+}
+
+function updatePrompt() {
+  const k = ci(state.cand), c = C[k];
+  const isUf = state.map === 'uf';
+  const name = isUf ? 'Range Map' : 'Brazil Map';
+  const geo = isUf
+    ? 'um mapa coroplético das UFs (geopandas, shapefile BR_UF_2021)'
+    : 'um mapa coroplético dos municípios (geopandas, shapefile BR_Municipios_2021, cruzado pela chave UF + nome do município normalizado sem acentos), sem bordas entre municípios';
+  const unit = isUf ? 'cada estado' : 'cada município';
+  const SRC = 'detalhe_votacao_munzona_2026_BR.csv (somando as zonas)';
+  const what = {
+    cand: `pelo percentual de votos de ${c.nm} (nº ${c.nr}) sobre o total de votos (incluindo brancos e nulos), a partir de ${isUf ? 'vot_uf' : 'vot_mun'} do rangeMap.ipynb`,
+    bn: isPct() ? `pelo percentual de votos brancos e nulos ((QT_VOTOS_BRANCOS + QT_TOTAL_VOTOS_NULOS) ÷ QT_COMPARECIMENTO) do ${SRC}`
+                : `pelo total absoluto de votos brancos e nulos (QT_VOTOS_BRANCOS + QT_TOTAL_VOTOS_NULOS) do ${SRC}, como no nullMap.ipynb`,
+    b: isPct() ? `pelo percentual de votos brancos (QT_VOTOS_BRANCOS ÷ QT_COMPARECIMENTO) do ${SRC}`
+               : `pelo total absoluto de votos brancos (QT_VOTOS_BRANCOS) do ${SRC}`,
+    n: isPct() ? `pelo percentual de votos nulos (QT_TOTAL_VOTOS_NULOS ÷ QT_COMPARECIMENTO) do ${SRC}`
+               : `pelo total absoluto de votos nulos (QT_TOTAL_VOTOS_NULOS) do ${SRC}`,
+    abs: isPct() ? `pela taxa de abstenção (QT_ABSTENCOES ÷ QT_APTOS) do ${SRC}`
+                 : `pelo total absoluto de abstenções (QT_ABSTENCOES) do ${SRC}`,
+  }[state.ind];
+  const cmap = IND[state.ind].cmap;
+  const parts = [`Gere o "${name}" do 1º turno da eleição presidencial de 2026: ${geo}, colorindo ${unit} ${what}.`];
+  if (state.auto) parts.push(`Use o colormap ${cmap} com a escala automática (mín/máx dos dados) e uma colorbar à direita.`);
+  else {
+    const lo = Math.min(state.vmin, state.vmax), hi = Math.max(state.vmin, state.vmax);
+    parts.push(isPct() ? `Use o colormap ${cmap} com escala fixa de ${lo}% a ${hi}% (vmin/vmax) e uma colorbar à direita.`
+                       : `Use o colormap ${cmap} com escala fixa de ${fmtInt(lo)} a ${fmtInt(hi)} (vmin/vmax) e uma colorbar à direita.`);
+  }
+  if (state.uf) {
+    const u = scopeItem();
+    parts.push(`Recorte o mapa para ${u.nm} (${u.sg}), mostrando apenas ${isUf ? 'esse estado' : 'os municípios desse estado'}${state.auto ? ', com a escala calculada só sobre eles' : ''}.`);
+  }
+  if (isUf && state.labels) parts.push(isPct() ? 'Anote o percentual (uma casa decimal) no centroide de cada estado, em negrito.'
+                                               : 'Anote o total (com separador de milhar) no centroide de cada estado, em negrito.');
+  if (isUf && !state.labels) parts.push('Não coloque rótulos sobre os estados.');
+  const sel = state.sel && state.sel.k === state.map ? items()[state.sel.i] : null;
+  if (sel && (sel.v || sel.a)) parts.push(`Destaque ${isUf ? 'o estado' : 'o município'} ${sel.nm}${sel.uf ? ' (' + sel.uf + ')' : ''} com contorno amarelo.`);
+  const ttl = state.ind === 'cand' ? `${name} – ${c.nm}` : `${name} – ${IND[state.ind].label()}${isPct() ? ' (%)' : ''}`;
+  parts.push(`Título: "${ttl}". Salve em PDF.`);
+  $('prompt').textContent = parts.join(' ');
+}
+
+function updateAll(relayout) {
+  syncControls();
+  renderMap(relayout);
+  renderSummary();
+  renderDetail();
+  updatePrompt();
+}
+
+// ---------- interação no mapa
+const tip = $('tip');
+svg.addEventListener('mousemove', e => {
+  const p = e.target.closest('path.f');
+  if (!p) { tip.style.display = 'none'; return; }
+  const it = (p.dataset.k === 'uf' ? DATA.ufs : DATA.muns)[+p.dataset.i];
+  let html = `<b>${it.nm}${it.uf ? ' – ' + it.uf : ''}</b>`;
+  if (!it.v && !it.a) html += '<div class="t"><span>sem dados</span></div>';
+  else {
+    if (state.ind !== 'cand' && it.a) {
+      const I = IND[state.ind], n = I.count(it), b = I.base(it);
+      html += `<div class="t" style="color:var(--accent)"><span>${I.label()}</span><span>${fmtPct(b ? n / b : 0)} · ${fmtInt(n)}</span></div>`;
+    }
+    if (it.v) {
+      const tot = total(it.v), k = ci(state.cand);
+      const order = it.v.map((x, i) => i).sort((a, b) => it.v[b] - it.v[a]);
+      order.slice(0, 3).forEach(i => {
+        html += `<div class="t"><span>${C[i].nm}</span><span>${fmtPct(it.v[i] / tot)} · ${fmtInt(it.v[i])}</span></div>`;
+      });
+      if (state.ind === 'cand' && order.indexOf(k) > 2)
+        html += `<div class="t" style="color:var(--accent)"><span>${C[k].nm}</span><span>${fmtPct(it.v[k] / tot)} · ${fmtInt(it.v[k])}</span></div>`;
+    }
+  }
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+});
+svg.addEventListener('mouseleave', () => tip.style.display = 'none');
+svg.addEventListener('click', e => {
+  const p = e.target.closest('path.f');
+  if (!p) { state.sel = null; updateAll(); return; }
+  const i = +p.dataset.i;
+  state.sel = state.sel && state.sel.k === p.dataset.k && state.sel.i === i ? null : { k: p.dataset.k, i };
+  if (state.sel && state.sel.k === 'mun') $('search').value = munKey(DATA.muns[i]);
+  updateAll();
+});
+
+$('copy').onclick = async () => {
+  const txt = $('prompt').textContent;
+  try { await navigator.clipboard.writeText(txt); }
+  catch { const r = document.createRange(); r.selectNodeContents($('prompt'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges(); }
+  $('copy').textContent = 'Copiado!';
+  setTimeout(() => $('copy').textContent = 'Copiar prompt', 1200);
+};
+
+updateAll(true);
+</script>
+</body>
+</html>
